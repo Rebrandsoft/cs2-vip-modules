@@ -13,7 +13,7 @@ jobs:
   build:
     permissions:
       contents: write
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     env:
       HL2SDK_ROOT: "${{ github.workspace }}/external"
@@ -29,7 +29,7 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -qy
-          sudo apt-get install -y git clang-10 clang++-10 binutils python3 zip
+          sudo apt-get install -y git clang binutils python3 zip
           python3 -m pip install --upgrade pip importlib-metadata
           python3 -m pip install setuptools==45.2.0
           
@@ -52,6 +52,11 @@ jobs:
       - name: Build VIP_Items
         run: |
           cd VIP_Items
+          # Clean up any existing build artifacts
+          rm -f VIP_Items.zip
+          rm -f build/VIP_Items.zip
+          rm -rf build/*
+          
           mkdir -p build
           cd src
           mkdir -p build
@@ -66,6 +71,8 @@ jobs:
           # Create zip if build succeeded
           if [ -d "package/addons" ]; then
             cd package/addons
+            # Remove any existing zip before creating new one
+            rm -f ../../../VIP_Items.zip
             zip -r ../../../VIP_Items.zip .
           fi
 
