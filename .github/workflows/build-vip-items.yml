@@ -27,8 +27,10 @@ jobs:
       - name: Set up dependencies
         run: |
           export DEBIAN_FRONTEND=noninteractive
+          sudo dpkg --add-architecture i386
           sudo apt-get update -qy
-          sudo apt-get install -y git clang binutils python3 zip
+          sudo apt-get install -y git clang binutils python3 zip \
+            gcc-multilib g++-multilib libc6-dev-i386 linux-libc-dev:i386
           python3 -m pip install --upgrade pip importlib-metadata
           python3 -m pip install setuptools==45.2.0
           
@@ -39,13 +41,28 @@ jobs:
           cd ..
           
           # Setup external dependencies
-          mkdir external
+          mkdir -p external
           cd external
           
-          # Clone required repositories
-          git clone --recursive --branch master --single-branch https://github.com/alliedmodders/metamod-source.git
-          git clone --recursive --branch master --single-branch https://github.com/alliedmodders/sourcemod.git
-          git clone --recursive --branch cs2 --single-branch https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
+          # Clone required repositories with specific branches
+          git clone --recursive https://github.com/alliedmodders/metamod-source.git
+          cd metamod-source
+          git checkout master
+          cd ..
+          
+          git clone --recursive https://github.com/alliedmodders/sourcemod.git
+          cd sourcemod
+          git checkout master
+          cd ..
+          
+          # Clone CS2 SDK with specific branch
+          git clone --recursive https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
+          cd hl2sdk-cs2
+          git checkout cs2
+          cd ..
+          
+          # Clone hl2sdk-manifests
+          git clone https://github.com/alliedmodders/hl2sdk-manifests.git
           cd ..
 
       - name: Build VIP_Items
@@ -60,10 +77,16 @@ jobs:
           cd src
           mkdir -p build
           cd build
-          python3 ../configure.py --enable-optimize --symbol-files --sdks cs2 \
+          
+          # Configure with specific paths
+          python3 ../configure.py \
+            --enable-optimize \
+            --symbol-files \
+            --sdks cs2 \
             --hl2sdk-root=$HL2SDK_ROOT \
             --mms_path=$MMS_PATH \
             --hl2sdk-manifests=$MANIFEST_PATH
+          
           ambuild
 
           # Create zip if build succeeded
