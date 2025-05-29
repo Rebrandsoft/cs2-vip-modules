@@ -71,10 +71,27 @@ jobs:
 
       - name: Setup Schema Files
         run: |
-          # Create schema directory in VIP_Items if it doesn't exist
-          mkdir -p VIP_Items/src/SchemaEntity
-          # Copy all schema files
-          cp -r external/SchemaEntity/* VIP_Items/src/SchemaEntity/
+          # First, let's verify the schema files exist
+          echo "Checking SchemaEntity files..."
+          ls -la external/SchemaEntity/
+          
+          # Create the correct directory structure
+          mkdir -p VIP_Items/src/sdk
+          
+          # Copy schema files to the correct location
+          echo "Copying SchemaEntity files..."
+          cp -rv external/SchemaEntity/*.h VIP_Items/src/sdk/
+          cp -rv external/SchemaEntity/*.cpp VIP_Items/src/sdk/
+          
+          # Verify the copy
+          echo "Verifying copied files..."
+          ls -la VIP_Items/src/sdk/
+          
+          # Create symlinks for vstdlib if needed
+          if [ ! -d "${HL2SDK_ROOT}/hl2sdk-cs2/public/vstdlib" ]; then
+            echo "Creating vstdlib directory..."
+            mkdir -p "${HL2SDK_ROOT}/hl2sdk-cs2/public/vstdlib"
+          fi
 
       - name: Build VIP_Items
         run: |
@@ -86,10 +103,19 @@ jobs:
           
           mkdir -p build
           cd src
+          
+          # Add include path for schema files
+          echo "Adding schema files to include path..."
+          export CXXFLAGS="$CXXFLAGS -I./sdk"
+          
           mkdir -p build
           cd build
           
-          # Configure with specific paths
+          # Show directory structure before configure
+          echo "Directory structure before configure:"
+          ls -R ../
+          
+          # Configure with specific paths and include directories
           python3 ../configure.py \
             --enable-optimize \
             --symbol-files \
@@ -98,38 +124,54 @@ jobs:
             --mms_path=$MMS_PATH \
             --hl2sdk-manifests=$MANIFEST_PATH
           
+          # Show directory structure before building
+          echo "Directory structure before build:"
+          ls -R
+          
           ambuild
 
           # Verify required files and structure before zipping
+          echo "Checking build output structure..."
           if [ -d "package/addons" ]; then
             # Check for .vdf file
             if [ ! -f "package/addons/metamod/vip_items.vdf" ]; then
               echo "Error: vip_items.vdf is missing"
+              echo "Contents of package/addons/metamod/:"
+              ls -la package/addons/metamod/
               exit 1
             fi
             
             # Check for .so file
             if [ ! -f "package/addons/vip_modules/vip_items.so" ]; then
               echo "Error: vip_items.so is missing"
+              echo "Contents of package/addons/vip_modules/:"
+              ls -la package/addons/vip_modules/
               exit 1
             fi
             
             # Check for config file
             if [ ! -f "package/addons/configs/vip/vip_items.ini" ]; then
               echo "Error: vip_items.ini is missing"
+              echo "Contents of package/addons/configs/vip/:"
+              ls -la package/addons/configs/vip/
               exit 1
             fi
             
             echo "All required files present, creating zip..."
             
+            # Show final directory structure
+            echo "Final directory structure:"
+            ls -R package/addons/
+            
             # If all files exist, create the zip
             cd package/addons
-            # Remove any existing zip before creating new one
             rm -f ../../../VIP_Items.zip
             zip -r ../../../VIP_Items.zip .
             echo "Zip file created successfully"
           else
             echo "Error: build directory structure is incorrect"
+            echo "Current directory structure:"
+            ls -R
             exit 1
           fi
 
