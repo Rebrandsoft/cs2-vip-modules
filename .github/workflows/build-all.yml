@@ -1,0 +1,92 @@
+name: Build All VIP Modules
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    
+    env:
+      MODULES_DIR: ${{ github.workspace }}
+
+    steps:
+      - name: Set up dependencies
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qy
+          sudo apt-get install -y git clang g++-multilib gcc-multilib lib32stdc++-11-dev lib32z1-dev libc6-dev-i386
+          python3 -m pip install --upgrade pip importlib-metadata
+          python3 -m pip install setuptools==45.2.0
+          
+          # Install AMBuild
+          git clone https://github.com/alliedmodders/ambuild.git
+          cd ambuild
+          python3 -m pip install .
+          cd ..
+
+      - name: Clone all repositories
+        run: |
+          # Clone main repository with autobuilder
+          git clone https://github.com/Pisex/cs2-vip-modules.git .
+          
+          # Clone required SDKs
+          mkdir -p external
+          cd external
+          git clone --recursive --branch master --single-branch https://github.com/alliedmodders/metamod-source.git
+          git clone --recursive --branch cs2 --single-branch https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
+          cd ..
+          
+          # Clone SchemaEntity
+          git clone https://github.com/pisex/SchemaEntity.git
+          
+          # Create symlinks for hl2sdk-manifests
+          ln -s external/metamod-source/hl2sdk-manifests hl2sdk-manifests
+
+          # Clone all VIP modules
+          git clone https://github.com/Pisex/VIPS.git
+          git clone https://github.com/Pisex/VIP_AntiFlash.git
+          git clone https://github.com/Pisex/VIP_BaseFunctions.git
+          git clone https://github.com/Pisex/VIP_Bhop.git
+          git clone https://github.com/Pisex/VIP_BuyTeamWeapon.git
+          git clone https://github.com/Pisex/VIP_FastDefuse.git
+          git clone https://github.com/Pisex/VIP_FastPlant.git
+          git clone https://github.com/Pisex/VIP_Healthshot.git
+          git clone https://github.com/Pisex/VIP_Items.git
+          git clone https://github.com/Pisex/VIP_KillScreen.git
+          git clone https://github.com/Pisex/VIP_RainbowModel.git
+          git clone https://github.com/Pisex/VIP_Respawn.git
+          git clone https://github.com/Pisex/VIP_ShowDamage.git
+          git clone https://github.com/Pisex/VIP_Smoke.git
+          git clone https://github.com/Pisex/VIP_Tag.git
+          git clone https://github.com/Pisex/VIP_Test.git
+
+          # Copy SchemaEntity files to each module's sdk directory
+          for module in VIPS VIP_AntiFlash VIP_BaseFunctions VIP_Bhop VIP_BuyTeamWeapon VIP_FastDefuse VIP_FastPlant VIP_Healthshot VIP_Items VIP_KillScreen VIP_RainbowModel VIP_Respawn VIP_ShowDamage VIP_Smoke VIP_Tag VIP_Test; do
+            if [ -d "$module/src" ]; then
+              mkdir -p "$module/src/sdk"
+              cp -r SchemaEntity/* "$module/src/sdk/"
+            elif [ -d "$module/source" ]; then
+              mkdir -p "$module/source/sdk"
+              cp -r SchemaEntity/* "$module/source/sdk/"
+            fi
+          done
+
+      - name: Make autobuilder.sh executable
+        run: chmod +x autobuilder.sh
+
+      - name: Run autobuilder
+        run: ./autobuilder.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vip-modules
+          path: |
+            */build/*.zip
+          if-no-files-found: error
