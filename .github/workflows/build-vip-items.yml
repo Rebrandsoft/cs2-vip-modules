@@ -1,0 +1,82 @@
+name: Build VIP Module
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-20.04
+
+    env:
+      HL2SDK_ROOT: "${{ github.workspace }}/external"
+      MMS_PATH: "${{ github.workspace }}/external/metamod-source"
+      SM_PATH: "${{ github.workspace }}/external/sourcemod"
+      MANIFEST_PATH: "${{ github.workspace }}/external/metamod-source/hl2sdk-manifests"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -qy
+          sudo apt-get install -y git clang-10 clang++-10 binutils python3 zip
+          python3 -m pip install --upgrade pip importlib-metadata
+          python3 -m pip install setuptools==45.2.0
+          
+          # Install AMBuild
+          git clone https://github.com/alliedmodders/ambuild.git
+          cd ambuild
+          pip install .
+          cd ..
+          
+          # Setup external dependencies
+          mkdir external
+          cd external
+          
+          # Clone required repositories
+          git clone --recursive --branch master --single-branch https://github.com/alliedmodders/metamod-source.git
+          git clone --recursive --branch master --single-branch https://github.com/alliedmodders/sourcemod.git
+          git clone --recursive --branch cs2 --single-branch https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
+          cd ..
+
+      - name: Build VIP_Items
+        run: |
+          cd VIP_Items
+          mkdir -p build
+          cd src
+          mkdir -p build
+          cd build
+          python3 ../configure.py --enable-optimize --symbol-files --sdks cs2 \
+            --hl2sdk-root=$HL2SDK_ROOT \
+            --mms_path=$MMS_PATH \
+            --sm_path=$SM_PATH \
+            --hl2sdk-manifests=$MANIFEST_PATH
+          ambuild
+
+          # Create zip if build succeeded
+          if [ -d "package/addons" ]; then
+            cd package/addons
+            zip -r ../../../VIP_Items.zip .
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VIP_Items
+          path: VIP_Items/VIP_Items.zip
+
+      - name: Upload release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: VIP_Items/VIP_Items.zip
