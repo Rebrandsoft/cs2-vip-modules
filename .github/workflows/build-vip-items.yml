@@ -56,16 +56,25 @@ jobs:
 
       - name: Configure and build plugin
         run: |
-          cd VIP_Items/src
-          # Clean up any existing build artifacts
-          rm -rf build
+          # Create a build directory outside the source tree
           mkdir -p build
-          python3 configure.py --enable-optimize --sdks cs2 --targets x86_64 --hl2sdk-manifests=$MANIFEST_PATH --mms_path=$MMS_PATH --hl2sdk-root=$HL2SDK_ROOT
+          cd build
+          
+          # Run configure from the build directory
+          python3 ../VIP_Items/src/configure.py \
+            --enable-optimize \
+            --sdks cs2 \
+            --targets x86_64 \
+            --hl2sdk-manifests=$MANIFEST_PATH \
+            --mms_path=$MMS_PATH \
+            --hl2sdk-root=$HL2SDK_ROOT
+          
+          # Run ambuild
           ambuild
 
       - name: Create archive
         run: |
-          cd VIP_Items/src/build/package
+          cd build/package
           # Remove any existing zip files
           rm -f *.zip
           zip -r ${{ github.workspace }}/VIP_Items.zip addons
