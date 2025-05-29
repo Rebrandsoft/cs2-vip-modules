@@ -43,13 +43,13 @@ jobs:
           git clone --recursive --branch master --single-branch https://github.com/alliedmodders/metamod-source.git
           git clone --recursive --branch cs2 --single-branch https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
           cd ..
+          
+          # Clone and set up SchemaEntity
           git clone https://github.com/pisex/SchemaEntity.git
           
-          # Create necessary directories
-          mkdir -p VIP_Items/src/sdk/SchemaEntity
-          
-          # Copy SchemaEntity files to the correct location
-          cp -r SchemaEntity/* VIP_Items/src/sdk/SchemaEntity/
+          # Create necessary directories and copy files
+          mkdir -p VIP_Items/src/sdk
+          cp -r SchemaEntity/* VIP_Items/src/sdk/
           
           # Clean up cloned repository
           rm -rf SchemaEntity
@@ -68,6 +68,9 @@ jobs:
             --hl2sdk-manifests=$MANIFEST_PATH \
             --mms_path=$MMS_PATH \
             --hl2sdk-root=$HL2SDK_ROOT
+          
+          # Create a symlink to the SDK directory for includes
+          ln -s ../VIP_Items/src/sdk sdk
           
           # Run ambuild
           ambuild
