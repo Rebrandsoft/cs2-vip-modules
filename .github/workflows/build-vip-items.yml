@@ -7,10 +7,13 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
+  release:
+    types:
+      - created
 
 jobs:
   build:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
     permissions:
       contents: write
     runs-on: ubuntu-22.04
@@ -18,9 +21,7 @@ jobs:
     env:
       HL2SDK_ROOT: "${{ github.workspace }}/external"
       MMS_PATH: "${{ github.workspace }}/external/metamod-source"
-      SM_PATH: "${{ github.workspace }}/external/sourcemod"
       MANIFEST_PATH: "${{ github.workspace }}/external/metamod-source/hl2sdk-manifests"
-      SCHEMA_PATH: "${{ github.workspace }}/external/SchemaEntity"
 
     steps:
       - name: Checkout code
@@ -28,208 +29,61 @@ jobs:
 
       - name: Set up dependencies
         run: |
-          export DEBIAN_FRONTEND=noninteractive
           sudo dpkg --add-architecture i386
           sudo apt-get update -qy
-          sudo apt-get install -y \
-            git \
-            clang \
-            binutils \
-            python3 \
-            python3-pip \
-            zip \
-            gcc-multilib \
-            g++-multilib \
-            libc6-dev-i386 \
-            linux-libc-dev:i386 \
-            libstdc++-12-dev \
-            libstdc++-12-dev:i386
-          
+          sudo apt-get install -y git clang g++-multilib gcc-multilib lib32stdc++-11-dev lib32z1-dev libc6-dev-i386
           python3 -m pip install --upgrade pip importlib-metadata
           python3 -m pip install setuptools==45.2.0
-          
-          # Install AMBuild
           git clone https://github.com/alliedmodders/ambuild.git
           cd ambuild
-          pip install .
+          python3 -m pip install .
           cd ..
-          
-          # Setup external dependencies
           mkdir -p external
           cd external
-          
-          # Clone required repositories with specific branches
-          git clone --recursive https://github.com/alliedmodders/metamod-source.git
-          cd metamod-source
-          git checkout master
+          git clone --recursive --branch master --single-branch https://github.com/alliedmodders/metamod-source.git
+          git clone --recursive --branch cs2 --single-branch https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
           cd ..
-          
-          git clone --recursive https://github.com/alliedmodders/sourcemod.git
-          cd sourcemod
-          git checkout master
-          cd ..
-          
-          # Clone CS2 SDK with specific branch
-          git clone --recursive https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
-          cd hl2sdk-cs2
-          git checkout cs2
-          cd ..
-          
-          # Clone hl2sdk-manifests
-          git clone https://github.com/alliedmodders/hl2sdk-manifests.git
-          
-          # Clone SchemaEntity
-          git clone https://github.com/Pisex/SchemaEntity.git
-          
-          # Create necessary directories
-          mkdir -p hl2sdk-cs2/public/vstdlib
-          cd ..
+          git clone https://github.com/pisex/SchemaEntity.git
+          cp -r SchemaEntity/sdk/* VIP_Items/src/sdk/
+          cd VIP_Items/src
 
-      - name: Setup Schema Files
+      - name: Configure and build plugin
         run: |
-          # First, let's verify the schema files exist
-          echo "Checking SchemaEntity files..."
-          ls -la external/SchemaEntity/
-          
-          # Create the correct directory structure
-          mkdir -p VIP_Items/src/sdk/SchemaEntity
-          
-          # Copy schema files to the correct location
-          echo "Copying SchemaEntity files..."
-          cp -rv external/SchemaEntity/*.h VIP_Items/src/sdk/SchemaEntity/
-          cp -rv external/SchemaEntity/*.cpp VIP_Items/src/sdk/SchemaEntity/
-          
-          # Create or modify AMBuilder
-          cat > VIP_Items/src/AMBuilder << 'EOL'
-          # vim: set sts=2 ts=8 sw=2 tw=99 et ft=python:
-          import os
-
-          binary = Extension.Library(builder, 'vip_items')
-
-          binary.sources = [
-            'vip_items.cpp',
-            os.path.join('sdk', 'SchemaEntity', 'schemasystem.cpp'),
-            os.path.join('sdk', 'SchemaEntity', 'memaddr.cpp'),
-            os.path.join('sdk', 'SchemaEntity', 'module.cpp'),
-            os.path.join('sdk', 'SchemaEntity', 'module_linux.cpp'),
-            os.path.join('sdk', 'SchemaEntity', 'ctimer.cpp'),
-          ]
-
-          binary.includes += [
-            os.path.join(builder.currentSourcePath, 'sdk'),
-            os.path.join(builder.currentSourcePath, 'sdk', 'SchemaEntity'),
-            os.path.join(builder.currentSourcePath, 'include'),
-            os.path.join(builder.mms.path, 'core', 'sourcehook'),
-            os.path.join(builder.sourceMod.path, 'public'),
-            os.path.join(builder.sourceMod.path, 'public', 'sourcepawn'),
-          ]
-
-          binary.compiler.defines += ['META_NO_HL2SDK']
-
-          if builder.target.platform == 'linux':
-            binary.compiler.postlink += ['-lpthread']
-
-          builder.Add(binary)
-          EOL
-          
-          # Verify the AMBuilder content
-          echo "AMBuilder content:"
-          cat VIP_Items/src/AMBuilder
-          
-          # Verify the copy
-          echo "Verifying copied files..."
-          ls -la VIP_Items/src/sdk/SchemaEntity/
-
-      - name: Build VIP_Items
-        run: |
-          cd VIP_Items
+          cd VIP_Items/src
           # Clean up any existing build artifacts
-          rm -f VIP_Items.zip
-          rm -f build/VIP_Items.zip
-          rm -rf build/*
-          
+          rm -rf build
           mkdir -p build
-          cd src
-          
-          # Add include paths for all dependencies
-          echo "Adding include paths..."
-          export CXXFLAGS="$CXXFLAGS -I./sdk -I./sdk/SchemaEntity -I./include -I$SM_PATH/public -I$SM_PATH/public/sourcepawn"
-          
-          mkdir -p build
-          cd build
-          
-          # Show directory structure before configure
-          echo "Directory structure before configure:"
-          ls -R ../
-          
-          # Configure with specific paths and include directories
-          python3 ../configure.py \
-            --enable-optimize \
-            --symbol-files \
-            --sdks cs2 \
-            --hl2sdk-root=$HL2SDK_ROOT \
-            --mms_path=$MMS_PATH \
-            --hl2sdk-manifests=$MANIFEST_PATH
-          
-          # Show directory structure before building
-          echo "Directory structure before build:"
-          ls -R
-          
+          python3 configure.py --enable-optimize --sdks cs2 --targets x86_64 --hl2sdk-manifests=$MANIFEST_PATH --mms_path=$MMS_PATH --hl2sdk-root=$HL2SDK_ROOT
           ambuild
 
-          # Verify required files and structure before zipping
-          echo "Checking build output structure..."
-          if [ -d "package/addons" ]; then
-            # Check for .vdf file
-            if [ ! -f "package/addons/metamod/vip_items.vdf" ]; then
-              echo "Error: vip_items.vdf is missing"
-              echo "Contents of package/addons/metamod/:"
-              ls -la package/addons/metamod/
-              exit 1
-            fi
-            
-            # Check for .so file
-            if [ ! -f "package/addons/vip_modules/vip_items.so" ]; then
-              echo "Error: vip_items.so is missing"
-              echo "Contents of package/addons/vip_modules/:"
-              ls -la package/addons/vip_modules/
-              exit 1
-            fi
-            
-            # Check for config file
-            if [ ! -f "package/addons/configs/vip/vip_items.ini" ]; then
-              echo "Error: vip_items.ini is missing"
-              echo "Contents of package/addons/configs/vip/:"
-              ls -la package/addons/configs/vip/
-              exit 1
-            fi
-            
-            echo "All required files present, creating zip..."
-            
-            # Show final directory structure
-            echo "Final directory structure:"
-            ls -R package/addons/
-            
-            # If all files exist, create the zip
-            cd package/addons
-            rm -f ../../../VIP_Items.zip
-            zip -r ../../../VIP_Items.zip .
-            echo "Zip file created successfully"
-          else
-            echo "Error: build directory structure is incorrect"
-            echo "Current directory structure:"
-            ls -R
-            exit 1
-          fi
+      - name: Create archive
+        run: |
+          cd VIP_Items/src/build/package
+          # Remove any existing zip files
+          rm -f *.zip
+          zip -r ${{ github.workspace }}/VIP_Items.zip addons
 
-      - name: Upload build artifact
+      - name: Upload archive to artifact
         uses: actions/upload-artifact@v4
         with:
           name: VIP_Items
-          path: VIP_Items/VIP_Items.zip
+          path: VIP_Items.zip
 
+  release:
+    needs: build
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+  
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: VIP_Items
+          path: .
+  
       - name: Upload release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
-          files: VIP_Items/VIP_Items.zip
+          files: VIP_Items.zip
