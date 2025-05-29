@@ -104,8 +104,9 @@ jobs:
           # vim: set sts=2 ts=8 sw=2 tw=99 et ft=python:
           import os
 
-          project = builder.LibraryProject('vip_items')
-          project.sources += [
+          binary = Extension.Library(builder, 'vip_items')
+
+          binary.sources = [
             'vip_items.cpp',
             os.path.join('sdk', 'SchemaEntity', 'schemasystem.cpp'),
             os.path.join('sdk', 'SchemaEntity', 'memaddr.cpp'),
@@ -114,15 +115,21 @@ jobs:
             os.path.join('sdk', 'SchemaEntity', 'ctimer.cpp'),
           ]
 
-          project.compiler.cxxincludes += [
+          binary.includes += [
             os.path.join(builder.currentSourcePath, 'sdk'),
             os.path.join(builder.currentSourcePath, 'sdk', 'SchemaEntity'),
             os.path.join(builder.currentSourcePath, 'include'),
-            os.path.join('$SOURCEMOD', 'public'),
-            os.path.join('$SOURCEMOD', 'public', 'sourcepawn'),
+            os.path.join(builder.mms.path, 'core', 'sourcehook'),
+            os.path.join(builder.sourceMod.path, 'public'),
+            os.path.join(builder.sourceMod.path, 'public', 'sourcepawn'),
           ]
 
-          builder.Add(project)
+          binary.compiler.defines += ['META_NO_HL2SDK']
+
+          if builder.target.platform == 'linux':
+            binary.compiler.postlink += ['-lpthread']
+
+          builder.Add(binary)
           EOL
           
           # Verify the AMBuilder content
