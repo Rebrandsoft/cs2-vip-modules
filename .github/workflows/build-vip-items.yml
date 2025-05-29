@@ -18,7 +18,6 @@ jobs:
     env:
       HL2SDK_ROOT: "${{ github.workspace }}/external"
       MMS_PATH: "${{ github.workspace }}/external/metamod-source"
-      SM_PATH: "${{ github.workspace }}/external/sourcemod"
       MANIFEST_PATH: "${{ github.workspace }}/external/metamod-source/hl2sdk-manifests"
 
     steps:
@@ -64,7 +63,6 @@ jobs:
           python3 ../configure.py --enable-optimize --symbol-files --sdks cs2 \
             --hl2sdk-root=$HL2SDK_ROOT \
             --mms_path=$MMS_PATH \
-            --sm_path=$SM_PATH \
             --hl2sdk-manifests=$MANIFEST_PATH
           ambuild
 
