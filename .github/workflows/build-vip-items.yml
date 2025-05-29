@@ -44,8 +44,15 @@ jobs:
           git clone --recursive --branch cs2 --single-branch https://github.com/alliedmodders/hl2sdk.git hl2sdk-cs2
           cd ..
           git clone https://github.com/pisex/SchemaEntity.git
-          cp -r SchemaEntity/sdk/* VIP_Items/src/sdk/
-          cd VIP_Items/src
+          
+          # Create necessary directories
+          mkdir -p VIP_Items/src/sdk/SchemaEntity
+          
+          # Copy SchemaEntity files to the correct location
+          cp -r SchemaEntity/* VIP_Items/src/sdk/SchemaEntity/
+          
+          # Clean up cloned repository
+          rm -rf SchemaEntity
 
       - name: Configure and build plugin
         run: |
